@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descargador de Videos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #121212;
+            color: #eee;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background-color: #1e1e1e;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 1s ease-in-out;
+            max-width: 800px;
+            width: 90%;
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 1rem;
+        }
+        input, button {
+            padding: 12px;
+            margin: 8px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+        }
+        input {
+            width: 80%;
+            background-color: #333;
+            color: #fff;
+            transition: all 0.3s ease;
+        }
+        input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px #007bff;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s ease, background-color 0.3s ease;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            background-color: #0056b3;
+        }
+        #videoPlayerContainer {
+            position: relative;
+            width: 100%;
+            padding-top: 56.25%;
+            margin-top: 20px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+            border-radius: 10px;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #videoPlayerContainer.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        #videoPlayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #videoInfo {
+            margin-top: 20px;
+            width: 100%;
+        }
+        #videoInfo h2 {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+        #qualityButtons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .download-button {
+            background-color: #28a745;
+            color: white;
+        }
+        .download-button:hover {
+            background-color: #218838;
+        }
+        #statusMessage {
+            margin-top: 15px;
+            font-size: 1rem;
+            color: #999;
+            height: 20px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Descargador de Videos</h1>
+        <form id="infoForm">
+            <input type="text" id="videoUrl" placeholder="Pega la URL del video de YouTube" required>
+            <button type="submit">Buscar</button>
+        </form>
+        <p id="statusMessage"></p>
+        
+        <div id="videoPlayerContainer">
+            <iframe id="videoPlayer" frameborder="0" allowfullscreen style="display: none;"></iframe>
+        </div>
+        
+        <div id="videoInfo">
+            <h2 id="title"></h2>
+            <div id="qualityButtons"></div>
+        </div>
+    </div>
+
+    <script>
+        const infoForm = document.getElementById('infoForm');
+        const urlInput = document.getElementById('videoUrl');
+        const statusMessage = document.getElementById('statusMessage');
+        const videoPlayerContainer = document.getElementById('videoPlayerContainer');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const title = document.getElementById('title');
+        const qualityButtons = document.getElementById('qualityButtons');
+        
+        infoForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = urlInput.value;
+            statusMessage.textContent = 'Buscando video...';
+            videoPlayerContainer.classList.remove('visible');
+            qualityButtons.innerHTML = '';
+            videoPlayer.style.display = 'none';
+
+            try {
+                const response = await fetch('http://localhost:3000/info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+
+                if (!response.ok) {
+                    throw new Error('No se pudo obtener la información del video. URL inválida o error en el servidor.');
+                }
+
+                const data = await response.json();
+                
+                title.textContent = data.title;
+                videoPlayer.src = data.videoUrl + '?autoplay=1';
+                videoPlayer.style.display = 'block';
+
+                data.videoWithAudio.forEach(format => {
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'download-button';
+                    downloadBtn.textContent = `${format.quality} (con audio)`;
+                    downloadBtn.onclick = () => {
+                        window.location.href = `http://localhost:3000/download?url=${encodeURIComponent(url)}&itag=${format.itag}`;
+                    };
+                    qualityButtons.appendChild(downloadBtn);
+                });
+                
+                data.videoOnly.forEach(format => {
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'download-button';
+                    downloadBtn.textContent = `${format.quality} (sin audio)`;
+                    downloadBtn.onclick = () => {
+                        window.location.href = `http://localhost:3000/download?url=${encodeURIComponent(url)}&itag=${format.itag}`;
+                    };
+                    qualityButtons.appendChild(downloadBtn);
+                });
+
+                statusMessage.textContent = 'Información encontrada. ¡Elige una opción!';
+                videoPlayerContainer.classList.add('visible');
+
+            } catch (err) {
+                console.error(err);
+                statusMessage.textContent = `Error: ${err.message}`;
+            }
+        });
+    </script>
+</body>
+</html>
